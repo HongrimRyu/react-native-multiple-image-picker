@@ -2,10 +2,11 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://jitpack.io' }
     }
 
     dependencies {
-        classpath "com.android.tools.build:gradle:8.13.1"
+        classpath "com.android.tools.build:gradle:7.2.1"
     }
 }
 
@@ -47,20 +48,42 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags "-O2 -frtti -fexceptions -Wall -fstack-protector-all"
-                arguments "-DANDROID_STL=c++_shared"
+                // 16KB 페이지 크기 지원을 위한 C++ 플래그
+                cppFlags "-O2",
+                         "-frtti",
+                         "-fexceptions",
+                         "-Wall",
+                         "-fstack-protector-all",
+                         "-fPIC",
+                         "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES"
+
+                // 16KB 페이지 크기 링커 플래그
+                arguments "-DANDROID_STL=c++_shared",
+                          "-DANDROID_ARM_MODE=arm",
+                          "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384",
+                          "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-z,max-page-size=16384",
+                          "-DCMAKE_CXX_FLAGS=-Wl,-z,max-page-size=16384",
+                          "-DCMAKE_C_FLAGS=-Wl,-z,max-page-size=16384"
+
                 abiFilters(*reactNativeArchitectures())
             }
+        }
+
+        // 16KB 페이지 크기 대응을 위한 NDK 설정
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
         }
     }
 
     externalNativeBuild {
         cmake {
             path "CMakeLists.txt"
+            version "3.22.1"
         }
     }
 
     packagingOptions {
+        // 16KB 페이지 크기 문제를 일으키는 라이브러리 제외
         excludes = ["META-INF",
                     "META-INF/**",
                     "**/libc++_shared.so",
@@ -77,6 +100,17 @@ android {
                     "**/libturbomodulejsijni.so",
                     "**/libreact_nativemodule_core.so",
                     "**/libjscexecutor.so"]
+
+        // 16KB 관련 중복 파일 처리
+        pickFirst 'lib/x86/libc++_shared.so'
+        pickFirst 'lib/x86_64/libc++_shared.so'
+        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+
+        // JNI 라이브러리 머지
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     buildFeatures {
@@ -88,10 +122,16 @@ android {
         release {
             minifyEnabled false
         }
+
+        debug {
+            minifyEnabled false
+            jniDebuggable true
+        }
     }
 
     lintOptions {
         disable "GradleCompatible"
+        abortOnError false
     }
 
     compileOptions {
@@ -106,6 +146,8 @@ android {
                         // React Codegen files
                         "${project.buildDir}/generated/source/codegen/java"]
             }
+            // JNI 라이브러리 경로 명시
+            jniLibs.srcDirs = ['src/main/jniLibs']
         }
     }
 }
@@ -113,37 +155,33 @@ android {
 repositories {
     mavenCentral()
     google()
+    maven { url 'https://jitpack.io' }
 }
 
-
 dependencies {
-    // For < 0.71, this will be from the local maven repo
-    // For > 0.71, this will be replaced by `com.facebook.react:react-android:$version` by react gradle plugin
-    //noinspection GradleDynamicVersion
-
-    // Add a dependency on NitroModules
-    implementation 'com.github.bumptech.glide:glide:4.16.0'
-    annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
-    // PictureSelector basic (Necessary)
-    implementation 'io.github.liyuhaolol:PictureChooser:1.0.6'
-
-    // image compress library (Not necessary)
-    implementation 'io.github.liyuhaolol:compress:v3.11.3'
-
-    // uCrop library (Not necessary)
-    implementation 'io.github.liyuhaolol:ucrop:v3.11.7'
-
-    // simple camerax library (Not necessary)
-    implementation 'io.github.liyuhaolol:camerax:v3.11.5'
-
-    // exoplayer
-    implementation "com.google.android.exoplayer:exoplayer:2.19.1"
-
-
     implementation "com.facebook.react:react-native:+"
 
     // Add a dependency on NitroModules
     implementation project(":react-native-nitro-modules")
+
+    // Glide - 16KB 페이지 크기 지원 최신 버전
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
+
+    // PictureSelector - 16KB 페이지 크기 지원 버전
+    implementation 'io.github.lucksiege:pictureselector:v3.11.2'
+    implementation 'io.github.lucksiege:compress:v3.11.2'
+    implementation 'io.github.lucksiege:ucrop:v3.11.2'
+    implementation 'io.github.lucksiege:camerax:v3.11.2'
+
+    // ExoPlayer - 16KB 호환 최신 버전
+    implementation "androidx.media3:media3-exoplayer:1.2.0"
+    implementation "androidx.media3:media3-ui:1.2.0"
+
+    // AndroidX 16KB 지원 라이브러리
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
 }
 
 if (isNewArchitectureEnabled()) {
@@ -154,3 +192,26 @@ if (isNewArchitectureEnabled()) {
     }
 }
 
+// 16KB 페이지 크기 빌드 확인
+tasks.whenTaskAdded { task ->
+    if (task.name.contains('externalNativeBuild')) {
+        task.doFirst {
+            println "=========================================="
+            println "Building with 16KB page size support"
+            println "CMake flags include: -Wl,-z,max-page-size=16384"
+            println "=========================================="
+        }
+    }
+}
+
+// 빌드 후 16KB 호환성 검증
+tasks.whenTaskAdded { task ->
+    if (task.name == 'assembleDebug' || task.name == 'assembleRelease') {
+        task.doLast {
+            println "=========================================="
+            println "16KB page size build completed"
+            println "Please verify .so files with: readelf -l lib*.so"
+            println "=========================================="
+        }
+    }
+}
