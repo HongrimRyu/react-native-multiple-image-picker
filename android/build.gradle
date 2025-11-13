@@ -61,9 +61,7 @@ android {
                 arguments "-DANDROID_STL=c++_shared",
                           "-DANDROID_ARM_MODE=arm",
                           "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384",
-                          "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-z,max-page-size=16384",
-                          "-DCMAKE_CXX_FLAGS=-Wl,-z,max-page-size=16384",
-                          "-DCMAKE_C_FLAGS=-Wl,-z,max-page-size=16384"
+                          "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
 
                 abiFilters(*reactNativeArchitectures())
             }
@@ -174,9 +172,8 @@ dependencies {
     implementation 'io.github.lucksiege:ucrop:v3.11.2'
     implementation 'io.github.lucksiege:camerax:v3.11.2'
 
-    // ExoPlayer - 16KB 호환 최신 버전
-    implementation "androidx.media3:media3-exoplayer:1.2.0"
-    implementation "androidx.media3:media3-ui:1.2.0"
+    // ExoPlayer - 기존 버전 유지 (ExoPlayerEngine.kt와 호환)
+    implementation "com.google.android.exoplayer:exoplayer:2.19.1"
 
     // AndroidX 16KB 지원 라이브러리
     implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -199,18 +196,6 @@ tasks.whenTaskAdded { task ->
             println "=========================================="
             println "Building with 16KB page size support"
             println "CMake flags include: -Wl,-z,max-page-size=16384"
-            println "=========================================="
-        }
-    }
-}
-
-// 빌드 후 16KB 호환성 검증
-tasks.whenTaskAdded { task ->
-    if (task.name == 'assembleDebug' || task.name == 'assembleRelease') {
-        task.doLast {
-            println "=========================================="
-            println "16KB page size build completed"
-            println "Please verify .so files with: readelf -l lib*.so"
             println "=========================================="
         }
     }
