@@ -168,7 +168,7 @@ dependencies {
 
     // PictureSelector - 16KB 페이지 크기 지원 버전
     // PictureSelector basic (Necessary)
-    implementation 'io.github.liyuhaolol:PictureChooser:1.0.6'
+    implementation 'io.github.liyuhaolol:PictureSelector:v3.11.8'
 
     // image compress library (Not necessary)
     implementation 'io.github.liyuhaolol:compress:v3.11.3'
