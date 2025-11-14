@@ -1,73 +1,39 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url 'https://jitpack.io' }
-    }
-
-    dependencies {
-        classpath "com.android.tools.build:gradle:8.13.1"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$rootProject.getProperty("MultipleImagePicker_kotlinVersion") ?: "2.0.21"}"
-    }
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'com.facebook.react' apply false
 }
 
 def reactNativeArchitectures() {
     def value = rootProject.getProperties().get("reactNativeArchitectures")
-    return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
+    return value ? value.split(",") : ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
 }
 
 def isNewArchitectureEnabled() {
     return rootProject.hasProperty("newArchEnabled") && rootProject.getProperty("newArchEnabled") == "true"
 }
 
-apply plugin: "com.android.library"
-apply plugin: 'org.jetbrains.kotlin.android'
-apply from: '../nitrogen/generated/android/MultipleImagePicker+autolinking.gradle'
-
-if (isNewArchitectureEnabled()) {
-    apply plugin: "com.facebook.react"
-}
-
-def getExtOrDefault(name) {
-    return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["MultipleImagePicker_" + name]
-}
-
-def getExtOrIntegerDefault(name) {
-    return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties["MultipleImagePicker_" + name]).toInteger()
-}
-
 android {
     namespace "com.margelo.nitro.multipleimagepicker"
 
-    ndkVersion getExtOrDefault("ndkVersion")
-    compileSdk = getExtOrIntegerDefault("compileSdkVersion")
+    compileSdk = (project.properties["MultipleImagePicker_compileSdkVersion"] ?: 36).toInteger()
+    ndkVersion = project.properties["MultipleImagePicker_ndkVersion"] ?: "27.1.12297006"
 
     defaultConfig {
-        minSdk = getExtOrIntegerDefault("minSdkVersion")
-        targetSdk = getExtOrIntegerDefault("targetSdkVersion")
+        minSdk = (project.properties["MultipleImagePicker_minSdkVersion"] ?: 23).toInteger()
+        targetSdk = (project.properties["MultipleImagePicker_targetSdkVersion"] ?: 36).toInteger()
         buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
 
-        // 16KB 페이지 크기 대응
         ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            abiFilters += reactNativeArchitectures()
         }
 
         externalNativeBuild {
             cmake {
-                cppFlags "-O2",
-                         "-frtti",
-                         "-fexceptions",
-                         "-Wall",
-                         "-fstack-protector-all",
-                         "-fPIC",
-                         "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES"
-
+                cppFlags "-O2 -frtti -fexceptions -Wall -fstack-protector-all -fPIC -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES"
                 arguments "-DANDROID_STL=c++_shared",
-                          "-DANDROID_ARM_MODE=arm",
                           "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384",
                           "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
-
-                abiFilters(*reactNativeArchitectures())
             }
         }
     }
@@ -80,52 +46,37 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
-
-    packagingOptions {
-        pickFirst 'lib/x86/libc++_shared.so'
-        pickFirst 'lib/x86_64/libc++_shared.so'
-        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
-        pickFirst 'lib/arm64-v8a/libc++_shared.so'
-
-        jniLibs {
-            useLegacyPackaging = true
-        }
-    }
-
-    buildFeatures {
-        buildConfig true
-        prefab true
+    kotlin {
+        jvmToolchain(17)
     }
 
     buildTypes {
-        release {
-            minifyEnabled false
-        }
-        debug {
-            minifyEnabled false
-            jniDebuggable true
-        }
-    }
-
-    lintOptions {
-        disable "GradleCompatible"
-        abortOnError false
+        release { minifyEnabled false }
+        debug { minifyEnabled false; jniDebuggable true }
     }
 
     sourceSets {
         main {
-            if (isNewArchitectureEnabled()) {
-                java.srcDirs += ["${project.buildDir}/generated/source/codegen/java"]
-            }
+            java.srcDirs += ["src/main/java"]
             jniLibs.srcDirs = ['src/main/jniLibs']
+            if (isNewArchitectureEnabled()) {
+                java.srcDirs += ["${buildDir}/generated/source/codegen/java"]
+            }
         }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        pickFirst 'lib/x86/libc++_shared.so'
+        pickFirst 'lib/x86_64/libc++_shared.so'
+        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
     }
 }
 
@@ -136,14 +87,14 @@ repositories {
 }
 
 dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.2.20"
     implementation "com.facebook.react:react-native:+"
-    implementation project(":react-native-nitro-modules")
 
     // Glide
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
 
-    // PictureSelector + 관련 라이브러리
+    // PictureSelector 관련
     implementation 'io.github.liyuhaolol:PictureSelector:v3.11.8'
     implementation 'io.github.liyuhaolol:compress:v3.11.3'
     implementation 'io.github.liyuhaolol:ucrop:v3.11.7'
@@ -156,23 +107,4 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
-}
-
-if (isNewArchitectureEnabled()) {
-    react {
-        jsRootDir = file("../src/")
-        libraryName = "MultipleImagePicker"
-        codegenJavaPackageName = "com.margelo.nitro.multipleimagepicker"
-    }
-}
-
-tasks.whenTaskAdded { task ->
-    if (task.name.contains('externalNativeBuild')) {
-        task.doFirst {
-            println "=========================================="
-            println "Building with 16KB page size support"
-            println "CMake flags include: -Wl,-z,max-page-size=16384"
-            println "=========================================="
-        }
-    }
 }
