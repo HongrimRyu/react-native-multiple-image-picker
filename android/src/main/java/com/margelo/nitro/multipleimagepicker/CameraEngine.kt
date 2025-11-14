@@ -10,40 +10,66 @@ import java.io.File
 
 class CameraEngine(
     private val appContext: Context,
-    val config: NitroCameraConfig,
-) :
-    OnCameraInterceptListener {
+    private val config: NitroCameraConfig,
+) : OnCameraInterceptListener {
+
     override fun openCamera(fragment: Fragment, cameraMode: Int, requestCode: Int) {
         val camera = SimpleCameraX.of()
 
+        // 이미지 엔진 설정 - null 안전성 보장
         camera.setImageEngine { context, url, imageView ->
-            Glide.with(context).load(url).into(imageView)
+            if (context != null && url != null && imageView != null) {
+                Glide.with(context).load(url).into(imageView)
+            }
         }
 
+        // 카메라 설정
         camera.isAutoRotation(true)
         camera.setCameraMode(cameraMode)
         camera.isDisplayRecordChangeTime(true)
         camera.isManualFocusCameraPreview(true)
         camera.isZoomCameraPreview(true)
-        camera.setRecordVideoMaxSecond(config.videoMaximumDuration?.toInt() ?: 60)
-        camera.setCameraAroundState(config.cameraDevice == CameraDevice.FRONT)
+
+        // 비디오 최대 시간 설정 (null 안전)
+        val maxDuration = config.videoMaximumDuration?.toInt() ?: 60
+        camera.setRecordVideoMaxSecond(maxDuration)
+
+        // 카메라 방향 설정
+        val isFrontCamera = config.cameraDevice == CameraDevice.FRONT
+        camera.setCameraAroundState(isFrontCamera)
+
+        // 출력 경로 설정
         camera.setOutputPathDir(getSandboxCameraOutputPath())
 
-        config.color?.let {
-            val primaryColor = ColorPropConverter.getColor(it, appContext)
-            camera.setCaptureLoadingColor(primaryColor)
+        // 색상 설정 (null 안전)
+        config.color?.let { colorValue ->
+            try {
+                val primaryColor = ColorPropConverter.getColor(colorValue, appContext)
+                camera.setCaptureLoadingColor(primaryColor)
+            } catch (e: Exception) {
+                // 색상 변환 실패 시 기본값 사용
+                e.printStackTrace()
+            }
         }
 
-        camera.start(fragment.requireActivity(), fragment, requestCode)
+        // 카메라 시작 (null 체크)
+        val activity = fragment.activity
+        if (activity != null) {
+            camera.start(activity, fragment, requestCode)
+        }
     }
 
     private fun getSandboxCameraOutputPath(): String {
         val externalFilesDir: File? = appContext.getExternalFilesDir("")
-        val customFile = File(externalFilesDir?.absolutePath, "Sandbox")
+
+        // null 안전성을 보장하는 경로 생성
+        val baseDir = externalFilesDir?.absolutePath ?: appContext.filesDir.absolutePath
+        val customFile = File(baseDir, "Sandbox")
+
         if (!customFile.exists()) {
             customFile.mkdirs()
         }
-        return customFile.absolutePath + File.separator
 
+        return "${customFile.absolutePath}${File.separator}"
     }
 }
