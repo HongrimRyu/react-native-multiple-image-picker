@@ -6,7 +6,8 @@ buildscript {
     }
 
     dependencies {
-        classpath "com.android.tools.build:gradle:7.2.1"
+        classpath "com.android.tools.build:gradle:8.5.0"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${rootProject.extra.get("MultipleImagePicker_kotlinVersion") ?: "2.2.21"}"
     }
 }
 
@@ -39,16 +40,20 @@ android {
     namespace "com.margelo.nitro.multipleimagepicker"
 
     ndkVersion getExtOrDefault("ndkVersion")
-    compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
+    compileSdk = getExtOrIntegerDefault("compileSdkVersion")
 
     defaultConfig {
-        minSdkVersion getExtOrIntegerDefault("minSdkVersion")
-        targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
+        minSdk = getExtOrIntegerDefault("minSdkVersion")
+        targetSdk = getExtOrIntegerDefault("targetSdkVersion")
         buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+
+        // 16KB 페이지 크기 대응
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
 
         externalNativeBuild {
             cmake {
-                // 16KB 페이지 크기 지원을 위한 C++ 플래그
                 cppFlags "-O2",
                          "-frtti",
                          "-fexceptions",
@@ -57,7 +62,6 @@ android {
                          "-fPIC",
                          "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES"
 
-                // 16KB 페이지 크기 링커 플래그
                 arguments "-DANDROID_STL=c++_shared",
                           "-DANDROID_ARM_MODE=arm",
                           "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384",
@@ -65,11 +69,6 @@ android {
 
                 abiFilters(*reactNativeArchitectures())
             }
-        }
-
-        // 16KB 페이지 크기 대응을 위한 NDK 설정
-        ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
         }
     }
 
@@ -80,32 +79,21 @@ android {
         }
     }
 
-    packagingOptions {
-        // 16KB 페이지 크기 문제를 일으키는 라이브러리 제외
-        excludes = ["META-INF",
-                    "META-INF/**",
-                    "**/libc++_shared.so",
-                    "**/libfbjni.so",
-                    "**/libjsi.so",
-                    "**/libfolly_json.so",
-                    "**/libfolly_runtime.so",
-                    "**/libglog.so",
-                    "**/libhermes.so",
-                    "**/libhermes-executor-debug.so",
-                    "**/libhermes_executor.so",
-                    "**/libreactnative.so",
-                    "**/libreactnativejni.so",
-                    "**/libturbomodulejsijni.so",
-                    "**/libreact_nativemodule_core.so",
-                    "**/libjscexecutor.so"]
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
 
-        // 16KB 관련 중복 파일 처리
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+
+    packagingOptions {
         pickFirst 'lib/x86/libc++_shared.so'
         pickFirst 'lib/x86_64/libc++_shared.so'
         pickFirst 'lib/armeabi-v7a/libc++_shared.so'
         pickFirst 'lib/arm64-v8a/libc++_shared.so'
 
-        // JNI 라이브러리 머지
         jniLibs {
             useLegacyPackaging = true
         }
@@ -120,7 +108,6 @@ android {
         release {
             minifyEnabled false
         }
-
         debug {
             minifyEnabled false
             jniDebuggable true
@@ -132,57 +119,40 @@ android {
         abortOnError false
     }
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-
     sourceSets {
         main {
             if (isNewArchitectureEnabled()) {
-                java.srcDirs += [
-                        // React Codegen files
-                        "${project.buildDir}/generated/source/codegen/java"]
+                java.srcDirs += ["${project.buildDir}/generated/source/codegen/java"]
             }
-            // JNI 라이브러리 경로 명시
             jniLibs.srcDirs = ['src/main/jniLibs']
         }
     }
 }
 
 repositories {
-    mavenCentral()
     google()
+    mavenCentral()
     maven { url 'https://jitpack.io' }
 }
 
 dependencies {
     implementation "com.facebook.react:react-native:+"
-
-    // Add a dependency on NitroModules
     implementation project(":react-native-nitro-modules")
 
-    // Glide - 16KB 페이지 크기 지원 최신 버전
+    // Glide
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
 
-    // PictureSelector - 16KB 페이지 크기 지원 버전
-    // PictureSelector basic (Necessary)
+    // PictureSelector + 관련 라이브러리
     implementation 'io.github.liyuhaolol:PictureSelector:v3.11.8'
-
-    // image compress library (Not necessary)
     implementation 'io.github.liyuhaolol:compress:v3.11.3'
-
-    // uCrop library (Not necessary)
     implementation 'io.github.liyuhaolol:ucrop:v3.11.7'
-
-    // simple camerax library (Not necessary)
     implementation 'io.github.liyuhaolol:camerax:v3.11.5'
 
-    // ExoPlayer - 기존 버전 유지 (ExoPlayerEngine.kt와 호환)
+    // ExoPlayer
     implementation "com.google.android.exoplayer:exoplayer:2.19.1"
 
-    // AndroidX 16KB 지원 라이브러리
+    // AndroidX
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
@@ -196,7 +166,6 @@ if (isNewArchitectureEnabled()) {
     }
 }
 
-// 16KB 페이지 크기 빌드 확인
 tasks.whenTaskAdded { task ->
     if (task.name.contains('externalNativeBuild')) {
         task.doFirst {

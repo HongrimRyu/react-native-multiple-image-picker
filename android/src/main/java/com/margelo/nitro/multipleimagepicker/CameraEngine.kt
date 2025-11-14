@@ -14,7 +14,7 @@ class CameraEngine(
 ) : OnCameraInterceptListener {
 
     override fun openCamera(fragment: Fragment, cameraMode: Int, requestCode: Int) {
-        val camera = SimpleCameraX.of()
+        val camera = SimpleCameraX.of() ?: return
 
         // 이미지 엔진 설정 - null 안전성 보장
         camera.setImageEngine { context, url, imageView ->
